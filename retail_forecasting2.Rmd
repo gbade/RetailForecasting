@@ -1,0 +1,228 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+library(tidyverse)
+library(readr)
+library(magrittr)
+library(lubridate)
+
+retail <- read_csv("C:/Users/Debo Ayangbile/Documents/R/Project/OnlineRetail.csv",
+                   col_types = cols(
+                      InvoiceNo = col_character(),
+                      StockCode = col_character(),
+                      Description = col_character(),
+                      Quantity = col_integer(),
+                      InvoiceDate = col_datetime("%m/%d/%Y %H:%M"),
+                      UnitPrice = col_double(),
+                      CustomerID = col_integer(),
+                      Country = col_character()
+                      )) %>%
+  mutate(day = parse_date(format(InvoiceDate, "%Y-%m-%d")),
+         day_of_week = wday(day, label = TRUE),
+         time = parse_time(format(InvoiceDate, "%H:%M")),
+         month = format(InvoiceDate, "%m"),
+         income = Quantity * UnitPrice,
+         income_return = ifelse(Quantity > 0, "income", "return"))
+```
+
+```{r}
+library(tidyverse)
+library(readr)
+library(magrittr)
+library(lubridate)
+library(tidyquant)
+library(modelr)
+library(gridExtra)
+library(grid)
+
+p1 <- retail %>%
+  filter(Country == "United Kingdom") %>%
+  ggplot(aes(x = Country, fill = income_return)) +
+    geom_bar(alpha = 0.8) +
+    scale_fill_manual(values = palette_light()) +
+    theme_tq() +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+    guides(fill = FALSE) +
+    labs(x = "")
+
+p2 <- retail %>%
+  filter(Country != "United Kingdom") %>%
+  ggplot(aes(x = Country, fill = income_return)) +
+    geom_bar(alpha = 0.8) +
+    scale_fill_manual(values = palette_light()) +
+    theme_tq() +
+    theme(legend.position = "right") +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+    labs(x = "",
+         fill = "")
+
+grid.arrange(p1, p2, widths = c(0.2, 0.8))
+```
+
+```{r}
+library(tidyverse)
+library(readr)
+library(magrittr)
+library(lubridate)
+library(tidyquant)
+library(modelr)
+library(gridExtra)
+library(grid)
+
+retail %>%
+  ggplot(aes(x = time, y = day)) +
+    stat_bin2d(alpha = 0.8, bins = 25, color = "white") +
+    scale_fill_gradientn(colours = c(palette_light()[[1]], palette_light()[[2]])) +
+    theme_tq() +
+    theme(legend.position = "right") +
+    labs(title = "Purchases/returns per day and time")
+```
+
+```{r}
+library(tidyverse)
+library(readr)
+library(magrittr)
+library(lubridate)
+library(tidyquant)
+library(modelr)
+library(gridExtra)
+library(grid)
+
+retail %>%
+  ggplot(aes(x = day, y = ..density.., color = income_return)) +
+    geom_freqpoly(size = 1, alpha = 0.8, bins = 100) +
+    scale_color_manual(values = palette_light()) +
+    theme_tq() +
+    labs(title = "Density of purchases/returns over time",
+         x = "",
+         color = "")
+```
+
+```{r}
+retail %>%
+  filter(day == "2011-12-09")%>%
+  arrange(-Quantity)%>%
+  .[1:3, ]
+```
+
+```{r}
+library(tidyverse)
+library(readr)
+library(magrittr)
+library(lubridate)
+library(tidyquant)
+library(modelr)
+library(gridExtra)
+library(grid)
+
+retail %>%
+  mutate(day2 = format(InvoiceDate, "%d")) %>%
+  group_by(month, day2) %>%
+  summarise(sum_income = sum(income)) %>%
+  ggplot(aes(x = month, y = day2, fill = sum_income)) + 
+    geom_tile(alpha = 0.8, color = "white") + 
+    scale_fill_gradientn(colours = c(palette_light()[[1]], palette_light()[[2]])) + 
+    theme_tq() +
+    theme(legend.position = "right") +
+    labs(title = "Net income per month and day",
+         y = "day of the month",
+         fill = "net sum of income")
+```
+
+```{r}
+retail %>%
+  group_by(StockCode, Description) %>%
+  summarise(sum = sum(Quantity)) %>%
+  arrange(- sum)
+```
+
+```{r}
+p1 <- retail %>%
+  group_by(StockCode, Description) %>%
+  summarise(sum = sum(Quantity)) %>%
+  ggplot(aes(x = sum)) +
+    geom_density(fill = palette_light()[[1]], alpha = 0.8) +
+    theme_tq()
+
+p2 <- retail %>%
+  group_by(StockCode, Description) %>%
+  summarise(sum = sum(Quantity)) %>%
+  filter(sum > 1) %>%
+  ggplot(aes(x = sum)) +
+    geom_density(fill = palette_light()[[1]], alpha = 0.8) +
+    theme_tq()
+
+p3 <- retail %>%
+  group_by(StockCode, Description) %>%
+  summarise(sum = sum(Quantity)) %>%
+  filter(sum > 10000) %>%
+  ggplot(aes(x = sum)) +
+    geom_density(fill = palette_light()[[1]], alpha = 0.8) +
+    theme_tq()
+    
+grid.arrange(p1, p2, p3, ncol = 3)
+```
+
+```{r}
+most_sold <- retail %>%
+  group_by(day, StockCode, Description) %>%
+  summarise(sum = sum(Quantity)) %>%
+  group_by(StockCode, Description) %>%
+  summarise(n = n()) %>%
+  arrange(-n)
+
+head(most_sold)
+```
+
+```{r}
+retail %>%
+  filter(StockCode == "85123A") %>%
+  group_by(day, income_return) %>%
+  summarise(sum = sum(Quantity)) %>%
+  ggplot(aes(x = day, y = sum, color = income_return)) +
+    facet_wrap(~ income_return, ncol = 1, scales = "free") +
+    geom_line(size = 1, alpha = 0.5) +
+    scale_color_manual(values = palette_light()) +
+    theme_tq() +
+    labs(x = "",
+         y = "sum of quantities",
+         color = "",
+         title = "Transactions of WHITE HANGING HEART T-LIGHT HOLDER")
+```
+
+```{r}
+customer_purchase <- retail %>%
+  group_by(day, CustomerID) %>%
+  summarise(n = n(),
+            sum_it =  sum(Quantity),
+            sum_in = sum(income)) %>%
+  group_by(day) %>%
+  summarise(mean_in_cust = mean(sum_in),
+            mean_quant_cust = mean(sum_it),
+            mean_items_cust = mean(n))
+```
+
+```{r}
+customer_purchase %>%
+  gather(x, y, mean_in_cust:mean_items_cust) %>%
+  ggplot(aes(x = day, y = y)) +
+    facet_wrap(~ x, ncol = 1, scales = "free") +
+    geom_line(color = palette_light()[[1]], size = 1, alpha = 0.8) +
+    geom_smooth(color = palette_light()[[2]], method = 'loess') +
+    theme_tq() +
+    labs(x = "", 
+         y = "") 
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
